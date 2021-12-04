@@ -10,6 +10,8 @@ import sys
 import subprocess
 import shutil
 import webbrowser as wb
+import cv2
+import functools
 
 from functools import partial
 from collections import defaultdict
@@ -101,7 +103,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.label_hist = []
         self.last_open_dir = None
         self.cur_img_idx = 0
-        self.img_count = len(self.m_img_list)
+        self.img_count = 1
 
         # Whether we need to save or not.
         self.dirty = False
@@ -231,6 +233,15 @@ class MainWindow(QMainWindow, WindowMixin):
         open_prev_image = action(get_str('prevImg'), self.open_prev_image,
                                  'a', 'prev', get_str('prevImgDetail'))
 
+        flip_x = action('Flip image over y-axis', functools.partial(self.flip, direction=1),
+                                 'h', 'yflip', get_str('xFlip'))
+        
+        flip_y = action('Flip image over x-axis', functools.partial(self.flip, direction=0),
+                                 'v', 'xflip', get_str('yFlip'))
+
+        rotate = action('Rotate image 90 degrees counter-clockwise', self.rotate,
+                                 'b', 'rotate90', get_str('rotate'))
+
         verify = action(get_str('verifyImg'), self.verify_image,
                         'space', 'verify', get_str('verifyImgDetail'))
 
@@ -342,7 +353,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Label list context menu.
         label_menu = QMenu()
-        add_actions(label_menu, (edit, delete))
+        add_actions(label_menu, (edit, delete, flip_x))
         self.label_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.label_list.customContextMenuRequested.connect(
             self.pop_label_list_menu)
@@ -409,7 +420,8 @@ class MainWindow(QMainWindow, WindowMixin):
             labels, advanced_mode, None,
             hide_all, show_all, None,
             zoom_in, zoom_out, zoom_org, None,
-            fit_window, fit_width))
+            fit_window, fit_width, None,
+            flip_x, flip_y, rotate))
 
         self.menus.file.aboutToShow.connect(self.update_file_menu)
 
@@ -1347,8 +1359,26 @@ class MainWindow(QMainWindow, WindowMixin):
             if filename:
                 self.load_file(filename)
 
+    def flip(self, direction):
+        img_path = self.m_img_list[self.cur_img_idx]
+        img = cv2.imread(img_path)
+        
+        img = cv2.flip(img, direction)
+        cv2.imwrite(img_path, img)
+        
+        self.load_file(img_path)
+
+    def rotate(self):
+        img_path = self.m_img_list[self.cur_img_idx]
+        img = cv2.imread(img_path)
+        
+        img = cv2.rotate(img, cv2.cv2.ROTATE_90_CLOCKWISE)
+        cv2.imwrite(img_path, img)
+        
+        self.load_file(img_path)
+
     def open_next_image(self, _value=False):
-        # Proceeding next image without dialog if having any label
+        # Proceeding prev image without dialog if having any label
         if self.auto_saving.isChecked():
             if self.default_save_dir is not None:
                 if self.dirty is True:
